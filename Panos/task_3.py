@@ -374,13 +374,11 @@
 # # 6) The difference is shown as the staff member’s satisfaction deviation (positive or negative).
 
 
-
-
 # libraries
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from dash import Dash, dcc, html, Input, Output, State, no_update
+from dash import Dash, dcc, html, Input, Output, State
 
 # load data
 df = pd.read_csv("services_weekly.csv")
@@ -430,7 +428,6 @@ week_max = int(df["week"].max())
 # config
 # -----------------------------
 
-# exactly 4 attributes under the PCP
 PCP_DIMS = [
     ("Staff Morale", "staff_morale"),
     ("Available Beds", "available_beds"),
@@ -438,14 +435,13 @@ PCP_DIMS = [
     ("Patient-to-Doctor Ratio", "patient_to_doctor_ratio"),
 ]
 
-# animation / transition settings (ms)
 PCP_TRANSITION_MS = 350
 STAFF_TRANSITION_MS = 350
 HIST_TRANSITION_MS = 250
 
-# Histogram bins for satisfaction (0..100)
+# assume satisfaction in [0, 100]
 SAT_MIN, SAT_MAX = 0, 100
-N_BINS = 10  # change to 20 for 5-point bins, etc.
+N_BINS = 10
 BIN_EDGES = np.linspace(SAT_MIN, SAT_MAX, N_BINS + 1)
 
 # -----------------------------
@@ -490,7 +486,7 @@ app.layout = html.Div(
             style={"marginBottom": "16px"},
         ),
 
-        # NEW: Satisfaction Histogram (click a bin to filter PCP lines)
+        # Histogram + selected bin store
         html.Div(
             [
                 html.H4("Patient Satisfaction Histogram (Click a bin to filter PCP lines)"),
@@ -499,7 +495,6 @@ app.layout = html.Div(
                     clear_on_unhover=True,
                     style={"height": "240px"},
                 ),
-                # store selected bin [low, high] or None
                 dcc.Store(id="selected-sat-bin", data=None),
                 html.Div(
                     "Tip: click a bar to select a bin; click it again to clear.",
@@ -567,7 +562,7 @@ app.layout = html.Div(
                     style={"width": "50%", "display": "inline-block", "verticalAlign": "top"},
                 ),
 
-                # Staff chart
+                # Staff bar chart
                 html.Div(
                     [
                         html.H4("Staff Association with Patient Satisfaction (Scrollable)"),
@@ -623,19 +618,17 @@ def build_dimensions(dff: pd.DataFrame):
 
 
 def make_hist_figure(dff_all: pd.DataFrame, selected_bin):
-    # Pre-binned bar chart so clickData reliably carries the bin edges
     sat = dff_all["patient_satisfaction"].dropna().clip(SAT_MIN, SAT_MAX)
 
     counts, _ = np.histogram(sat, bins=BIN_EDGES)
     labels = [f"{int(BIN_EDGES[i])}–{int(BIN_EDGES[i+1])}" for i in range(len(BIN_EDGES) - 1)]
     custom = [[float(BIN_EDGES[i]), float(BIN_EDGES[i + 1])] for i in range(len(BIN_EDGES) - 1)]
 
-    # highlight selected bin (simple opacity change)
     marker_opacity = [0.9] * len(labels)
     if selected_bin is not None:
         low, high = selected_bin
-        for i in range(len(custom)):
-            if custom[i][0] == low and custom[i][1] == high:
+        for i, (lo, hi) in enumerate(custom):
+            if lo == low and hi == high:
                 marker_opacity[i] = 1.0
             else:
                 marker_opacity[i] = 0.35
@@ -662,9 +655,8 @@ def make_hist_figure(dff_all: pd.DataFrame, selected_bin):
     )
     return fig
 
-
 # -----------------------------
-# NEW: bin selection store
+# store selected bin
 # -----------------------------
 @app.callback(
     Output("selected-sat-bin", "data"),
@@ -676,15 +668,13 @@ def toggle_bin(clickData, selected_bin):
     if not clickData or "points" not in clickData or not clickData["points"]:
         return selected_bin
 
-    # our bar chart sets customdata = [low, high]
     low, high = clickData["points"][0]["customdata"]
 
-    # click again to clear
+    # clicking the same bin again clears the selection
     if selected_bin is not None and selected_bin[0] == low and selected_bin[1] == high:
         return None
 
     return [low, high]
-
 
 # -----------------------------
 # main callback
@@ -707,7 +697,7 @@ def update_all(week_range, selected_bin):
     w1, w2 = week_range
     dff_all = df[(df["week"] >= w1) & (df["week"] <= w2)].copy()
 
-    # Histogram figure (always from current week filter)
+    # Histogram
     hist_fig = make_hist_figure(dff_all, selected_bin)
 
     # PCP figures (one per service)
@@ -737,7 +727,7 @@ def update_all(week_range, selected_bin):
         dimensions = build_dimensions(dff)
         sat = dff["patient_satisfaction"].clip(SAT_MIN, SAT_MAX)
 
-        # If no bin selected: single trace (as before)
+        # no bin selected -> single trace
         if selected_bin is None:
             fig = go.Figure(
                 data=[
@@ -755,9 +745,10 @@ def update_all(week_range, selected_bin):
                     )
                 ]
             )
+
+        # bin selected -> split into highlighted vs blurred
         else:
             low, high = selected_bin
-            # include low, exclude high (typical bin behavior)
             in_bin = (sat >= low) & (sat < high) if high < SAT_MAX else (sat >= low) & (sat <= high)
 
             dff_sel = dff.loc[in_bin].copy()
@@ -765,18 +756,17 @@ def update_all(week_range, selected_bin):
 
             traces = []
 
-            # "Blurred" others: light gray + very low opacity
+            # blurred others: gray with low alpha
             if not dff_other.empty:
                 traces.append(
                     go.Parcoords(
                         labelside="bottom",
-                        line=dict(color="rgba(120,120,120,1)"),
+                        line=dict(color="rgba(120,120,120,0.12)"),
                         dimensions=build_dimensions(dff_other),
-                        opacity=0.08,  # blur effect
                     )
                 )
 
-            # Selected bin: normal colored lines
+            # selected bin: normal colors
             if not dff_sel.empty:
                 sat_sel = dff_sel["patient_satisfaction"].clip(SAT_MIN, SAT_MAX)
                 traces.append(
@@ -791,18 +781,16 @@ def update_all(week_range, selected_bin):
                             colorbar=dict(title="Patient Satisfaction"),
                         ),
                         dimensions=build_dimensions(dff_sel),
-                        opacity=1.0,
                     )
                 )
 
-            # If bin is selected but no selected rows, still show something
+            # if nothing in either group, draw faint gray base
             if not traces:
                 traces = [
                     go.Parcoords(
                         labelside="bottom",
-                        line=dict(color="rgba(120,120,120,1)"),
+                        line=dict(color="rgba(120,120,120,0.25)"),
                         dimensions=dimensions,
-                        opacity=0.15,
                     )
                 ]
 
@@ -818,7 +806,7 @@ def update_all(week_range, selected_bin):
         )
         pcp_figs.append(fig)
 
-    # Staff chart logic (unchanged)
+    # Staff chart
     if dff_all.empty:
         staff_fig = go.Figure(
             layout={
@@ -895,6 +883,5 @@ def update_all(week_range, selected_bin):
 
 
 # run
-# http://127.0.0.1:8050
 if __name__ == "__main__":
     app.run(debug=True)
