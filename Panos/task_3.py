@@ -373,6 +373,9 @@
 
 # # 6) The difference is shown as the staff member’s satisfaction deviation (positive or negative).
 
+###############################
+
+
 
 # libraries
 import pandas as pd
@@ -495,13 +498,12 @@ app.layout = html.Div(
                                                 "duration": PCP_TRANSITION_MS,
                                                 "redraw": True,
                                             },
-                                            "transition": {"duration": PCP_TRANSITION_MS},
+                                            "transition": {
+                                                "duration": PCP_TRANSITION_MS
+                                            },
                                         },
                                     ),
-                                    style={
-                                        "width": "50%",
-                                        "display": "inline-block",
-                                    },
+                                    style={"width": "50%", "display": "inline-block"},
                                 ),
                                 html.Div(
                                     dcc.Graph(
@@ -512,13 +514,12 @@ app.layout = html.Div(
                                                 "duration": PCP_TRANSITION_MS,
                                                 "redraw": True,
                                             },
-                                            "transition": {"duration": PCP_TRANSITION_MS},
+                                            "transition": {
+                                                "duration": PCP_TRANSITION_MS
+                                            },
                                         },
                                     ),
-                                    style={
-                                        "width": "50%",
-                                        "display": "inline-block",
-                                    },
+                                    style={"width": "50%", "display": "inline-block"},
                                 ),
                                 html.Div(
                                     dcc.Graph(
@@ -529,13 +530,12 @@ app.layout = html.Div(
                                                 "duration": PCP_TRANSITION_MS,
                                                 "redraw": True,
                                             },
-                                            "transition": {"duration": PCP_TRANSITION_MS},
+                                            "transition": {
+                                                "duration": PCP_TRANSITION_MS
+                                            },
                                         },
                                     ),
-                                    style={
-                                        "width": "50%",
-                                        "display": "inline-block",
-                                    },
+                                    style={"width": "50%", "display": "inline-block"},
                                 ),
                                 html.Div(
                                     dcc.Graph(
@@ -546,13 +546,12 @@ app.layout = html.Div(
                                                 "duration": PCP_TRANSITION_MS,
                                                 "redraw": True,
                                             },
-                                            "transition": {"duration": PCP_TRANSITION_MS},
+                                            "transition": {
+                                                "duration": PCP_TRANSITION_MS
+                                            },
                                         },
                                     ),
-                                    style={
-                                        "width": "50%",
-                                        "display": "inline-block",
-                                    },
+                                    style={"width": "50%", "display": "inline-block"},
                                 ),
                             ]
                         ),
@@ -564,10 +563,12 @@ app.layout = html.Div(
                     },
                 ),
 
-                # Staff chart
+                # Right column: Staff chart + Satisfaction histogram
                 html.Div(
                     [
-                        html.H4("Staff Association with Patient Satisfaction (Scrollable)"),
+                        html.H4(
+                            "Staff Association with Patient Satisfaction (Scrollable)"
+                        ),
                         html.Div(
                             [
                                 dcc.Graph(
@@ -578,12 +579,17 @@ app.layout = html.Div(
                                             "duration": STAFF_TRANSITION_MS,
                                             "redraw": True,
                                         },
-                                        "transition": {"duration": STAFF_TRANSITION_MS},
+                                        "transition": {
+                                            "duration": STAFF_TRANSITION_MS
+                                        },
                                     },
                                 )
                             ],
                             style=SCROLL_WRAP_STYLE,
                         ),
+
+                        html.H4("Distribution of Patient Satisfaction Scores"),
+                        dcc.Graph(id="satisfaction-histogram"),
                     ],
                     style={
                         "width": "50%",
@@ -593,22 +599,6 @@ app.layout = html.Div(
                 ),
             ],
             style={"display": "flex", "gap": "12px"},
-        ),
-
-        # NEW: Histogram of patient satisfaction
-        html.Div(
-            [
-                html.H4("Patient Satisfaction Distribution (Selected Weeks)"),
-                dcc.Graph(
-                    id="satisfaction-hist",
-                    animate=True,
-                    animation_options={
-                        "frame": {"duration": STAFF_TRANSITION_MS, "redraw": True},
-                        "transition": {"duration": STAFF_TRANSITION_MS},
-                    },
-                ),
-            ],
-            style={"marginTop": "24px"},
         ),
     ],
     style=PAGE_STYLE,
@@ -622,7 +612,7 @@ app.layout = html.Div(
         Output(f"pcp-{services[2]}", "figure"),
         Output(f"pcp-{services[3]}", "figure"),
         Output("staff-chart", "figure"),
-        Output("satisfaction-hist", "figure"),  # NEW output
+        Output("satisfaction-histogram", "figure"),
     ],
     [Input("week-range", "value")],
 )
@@ -635,10 +625,8 @@ def update_all(week_range):
     for s in services:
         dff = dff_all[dff_all["service"] == s].copy()
 
-        # Need satisfaction for color + the 4 dimensions
         needed_cols = ["patient_satisfaction"] + [c for _, c in PCP_DIMS]
         needed_cols = [c for c in needed_cols if c in dff.columns]
-
         dff = dff.dropna(subset=needed_cols, how="any")
 
         if dff.empty:
@@ -665,7 +653,6 @@ def update_all(week_range):
             vmin = float(np.nanmin(dff[col].values))
             vmax = float(np.nanmax(dff[col].values))
 
-            # format: ratios get 2 decimals, others as integers
             is_ratio = "ratio" in col.lower()
             fmt = (lambda x: f"{x:.2f}") if is_ratio else (lambda x: f"{x:.0f}")
 
@@ -710,7 +697,7 @@ def update_all(week_range):
 
         pcp_figs.append(fig)
 
-    # If no data at all for selected weeks
+    # If no data at all in selected weeks
     if dff_all.empty:
         staff_fig = go.Figure(
             layout={
@@ -726,16 +713,13 @@ def update_all(week_range):
 
         hist_fig = go.Figure(
             layout={
-                "title": "No Data Available for Patient Satisfaction Histogram",
-                "xaxis": {"visible": False},
-                "yaxis": {"visible": False},
-                "height": 400,
+                "title": "No Patient Satisfaction Data for Selected Week Range",
+                "xaxis": {"title": "Patient Satisfaction Score"},
+                "yaxis": {"title": "Count"},
                 "template": "plotly_white",
-                "transition": {"duration": STAFF_TRANSITION_MS},
                 "uirevision": "keep",
             }
         )
-
         return pcp_figs + [staff_fig, hist_fig]
 
     # Staff chart logic
@@ -766,7 +750,10 @@ def update_all(week_range):
     staff_agg["satisfaction_contribution"] = (
         staff_agg["mean_satisfaction"] - overall_avg_satisfaction
     )
-    staff_agg = staff_agg.sort_values("satisfaction_contribution", ascending=True)
+
+    staff_agg = staff_agg.sort_values(
+        "satisfaction_contribution", ascending=True
+    )
 
     bar_colors = [
         "#27AE60" if v >= 0 else "#E74C3C"
@@ -784,12 +771,16 @@ def update_all(week_range):
             textposition="auto",
         )
     )
+
     staff_fig.update_layout(
         title={
             "text": f"Staff Association with Patient Satisfaction Deviation (Weeks {w1}–{w2})",
             "x": 0.5,
         },
-        xaxis_title=f"Avg Satisfaction Deviation from Overall Mean ({overall_avg_satisfaction:.2f})",
+        xaxis_title=(
+            f"Avg Satisfaction Deviation from Overall Mean "
+            f"({overall_avg_satisfaction:.2f})"
+        ),
         yaxis_title="Staff Member",
         height=2500,
         template="plotly_white",
@@ -808,57 +799,34 @@ def update_all(week_range):
         ],
     )
 
-    # Histogram for patient satisfaction (all services combined for selected weeks)
-    ps = dff_all["patient_satisfaction"].dropna()
+    # Histogram of patient satisfaction (all services, selected weeks)
+    sat_values = dff_all["patient_satisfaction"].dropna()
 
-    if ps.empty:
-        hist_fig = go.Figure(
-            layout={
-                "title": "No Patient Satisfaction Data for Histogram (Selected Weeks)",
-                "xaxis": {"visible": False},
-                "yaxis": {"visible": False},
-                "height": 400,
-                "template": "plotly_white",
-                "transition": {"duration": STAFF_TRANSITION_MS},
-                "uirevision": "keep",
-            }
-        )
-    else:
-        ps_min = float(ps.min())
-        ps_max = float(ps.max())
-
-        # Avoid zero-size bins if all values are equal
-        if ps_min == ps_max:
-            xbins = None
-        else:
-            bin_size = (ps_max - ps_min) / 10.0
-            xbins = dict(start=ps_min, end=ps_max, size=bin_size)
-
-        hist_trace_kwargs = {"x": ps}
-        if xbins is not None:
-            hist_trace_kwargs["xbins"] = xbins
-
-        hist_fig = go.Figure()
-        hist_fig.add_trace(
+    hist_fig = go.Figure(
+        data=[
             go.Histogram(
-                **hist_trace_kwargs,
+                x=sat_values,
+                xbins=dict(
+                    start=0,
+                    end=100,
+                    size=5,
+                ),
             )
-        )
-        hist_fig.update_layout(
-            title="Distribution of Patient Satisfaction (Selected Weeks)",
-            xaxis_title="Patient Satisfaction",
-            yaxis_title="Count of Records",
-            template="plotly_white",
-            height=400,
-            margin=dict(t=60, l=60, r=40, b=60),
-            transition={"duration": STAFF_TRANSITION_MS},
-            uirevision="keep",
-        )
+        ]
+    )
+
+    hist_fig.update_layout(
+        title=f"Patient Satisfaction Distribution (Weeks {w1}–{w2})",
+        xaxis_title="Patient Satisfaction Score",
+        yaxis_title="Number of Observations",
+        template="plotly_white",
+        margin=dict(t=60, l=60, r=30, b=60),
+        uirevision="keep",
+    )
 
     return pcp_figs + [staff_fig, hist_fig]
 
 
 # run
-# http://127.0.0.1:8050
 if __name__ == "__main__":
     app.run(debug=True)
