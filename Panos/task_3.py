@@ -358,24 +358,6 @@
 
 
 ########################################3
- 
-# # # For each staff member, we estimate satisfaction by averaging the patient satisfaction scores of the services they worked in during the selected weeks.
-# # # ------
-
-# # # 1) Each service–week has a patient satisfaction score.
-
-# # # 2) Each staff shift is linked to a service and a week.
-
-# # # 3) We attach the service’s satisfaction score to every shift worked by that staff member.
-
-# # # 4) For each staff member, we take the mean of all satisfaction scores from their shifts.
-
-# # # 5) We compare that mean to the overall average satisfaction for the same weeks.
-
-# # # 6) The difference is shown as the staff member’s satisfaction deviation (positive or negative).
-
-# # ##############################
-
 
 
 # # libraries
@@ -468,6 +450,7 @@
 # # layout
 # app.layout = html.Div(
 #     [
+#         # store for selected satisfaction bin (for PCP only)
 #         dcc.Store(id="selected-sat-bin", data=None),
 
 #         html.H2("Service Metrics Dashboard", style=HEADER_STYLE),
@@ -725,20 +708,23 @@
 # )
 # def update_all(week_range, selected_bin):
 #     w1, w2 = week_range
-#     dff_all = df[(df["week"] >= w1) & (df["week"] <= w2)].copy()
 
-#     # apply satisfaction bin filter if any
+#     # base data by week range (used by staff chart)
+#     dff_weeks = df[(df["week"] >= w1) & (df["week"] <= w2)].copy()
+
+#     # PCP data optionally filtered by histogram satisfaction bin
+#     dff_pcp = dff_weeks.copy()
 #     if selected_bin is not None:
 #         low, high = selected_bin["low"], selected_bin["high"]
-#         dff_all = dff_all[
-#             (dff_all["patient_satisfaction"] >= low)
-#             & (dff_all["patient_satisfaction"] < high)
+#         dff_pcp = dff_pcp[
+#             (dff_pcp["patient_satisfaction"] >= low)
+#             & (dff_pcp["patient_satisfaction"] < high)
 #         ]
 
 #     # PCP figures (one per service)
 #     pcp_figs = []
 #     for s in services:
-#         dff = dff_all[dff_all["service"] == s].copy()
+#         dff = dff_pcp[dff_pcp["service"] == s].copy()
 
 #         needed_cols = ["patient_satisfaction"] + [c for _, c in PCP_DIMS]
 #         needed_cols = [c for c in needed_cols if c in dff.columns]
@@ -811,11 +797,11 @@
 
 #         pcp_figs.append(fig)
 
-#     # Staff chart logic
-#     if dff_all.empty:
+#     # Staff chart uses only week filter (no satisfaction-bin filter)
+#     if dff_weeks.empty:
 #         staff_fig = go.Figure(
 #             layout={
-#                 "title": "No Data Available for Selected Filters",
+#                 "title": "No Data Available for Selected Week Range",
 #                 "xaxis": {"visible": False},
 #                 "yaxis": {"visible": False},
 #                 "height": 700,
@@ -826,12 +812,12 @@
 #         )
 #         return pcp_figs + [staff_fig]
 
-#     overall_avg_satisfaction = dff_all["patient_satisfaction"].mean()
+#     overall_avg_satisfaction = dff_weeks["patient_satisfaction"].mean()
 
 #     sched_filtered = schedule[(schedule["week"] >= w1) & (schedule["week"] <= w2)]
 #     staff_satisfaction = (
 #         sched_filtered.merge(
-#             dff_all[["week", "service", "patient_satisfaction"]],
+#             dff_weeks[["week", "service", "patient_satisfaction"]],
 #             on=["week", "service"],
 #             how="left",
 #         )
@@ -901,7 +887,6 @@
 # # http://127.0.0.1:8050
 # if __name__ == "__main__":
 #     app.run(debug=True)
-
 
 ########################################
 
@@ -1163,11 +1148,9 @@ def toggle_selected_bin(click_data, current_bin):
     if click_data is None or "points" not in click_data:
         return current_bin
 
-    x_clicked = click_data["points"][0]["x"]  # this is the bin center
-    # find closest bin center
+    x_clicked = click_data["points"][0]["x"]  # bin center
     idx = int(np.argmin(np.abs(SAT_BIN_CENTERS - x_clicked)))
 
-    # toggle off if same bin clicked
     if current_bin is not None and current_bin.get("bin_idx") == idx:
         return None
 
@@ -1188,14 +1171,11 @@ def update_histogram(week_range, selected_bin):
     dff = df[(df["week"] >= w1) & (df["week"] <= w2)]
 
     vals = dff["patient_satisfaction"].dropna().values
-
     counts, _ = np.histogram(vals, bins=SAT_BINS)
 
-    # base Viridis colors according to bin center
     norm_centers = (SAT_BIN_CENTERS - 0) / 100.0
     base_colors = sample_colorscale("Viridis", norm_centers.tolist())
 
-    # optionally highlight selected bin
     if selected_bin is not None:
         selected_idx = selected_bin["bin_idx"]
         colors = [
@@ -1255,7 +1235,7 @@ def update_histogram(week_range, selected_bin):
 def update_all(week_range, selected_bin):
     w1, w2 = week_range
 
-    # base data by week range (used by staff chart)
+    # base data by week range (used by staff chart and PCP ranges)
     dff_weeks = df[(df["week"] >= w1) & (df["week"] <= w2)].copy()
 
     # PCP data optionally filtered by histogram satisfaction bin
@@ -1270,13 +1250,17 @@ def update_all(week_range, selected_bin):
     # PCP figures (one per service)
     pcp_figs = []
     for s in services:
+        # data for ranges: all weeks for this service
+        dff_service_weeks = dff_weeks[dff_weeks["service"] == s].copy()
+
+        # data for lines: filtered by bin (if any)
         dff = dff_pcp[dff_pcp["service"] == s].copy()
 
         needed_cols = ["patient_satisfaction"] + [c for _, c in PCP_DIMS]
         needed_cols = [c for c in needed_cols if c in dff.columns]
         dff = dff.dropna(subset=needed_cols, how="any")
 
-        if dff.empty:
+        if dff.empty or dff_service_weeks.empty:
             fig_empty = go.Figure(
                 layout=dict(
                     title=f"No Data Available — {s}",
@@ -1296,8 +1280,9 @@ def update_all(week_range, selected_bin):
             if col not in dff.columns:
                 continue
 
-            vmin = float(np.nanmin(dff[col].values))
-            vmax = float(np.nanmax(dff[col].values))
+            # ranges from full week-filtered service data
+            vmin = float(np.nanmin(dff_service_weeks[col].values))
+            vmax = float(np.nanmax(dff_service_weeks[col].values))
 
             is_ratio = "ratio" in col.lower()
             fmt = (lambda x: f"{x:.2f}") if is_ratio else (lambda x: f"{x:.0f}")
