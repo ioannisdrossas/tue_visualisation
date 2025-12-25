@@ -357,7 +357,8 @@
 
 
 
-########################################3
+########################################
+
 
 
 # # libraries
@@ -617,11 +618,9 @@
 #     if click_data is None or "points" not in click_data:
 #         return current_bin
 
-#     x_clicked = click_data["points"][0]["x"]  # this is the bin center
-#     # find closest bin center
+#     x_clicked = click_data["points"][0]["x"]  # bin center
 #     idx = int(np.argmin(np.abs(SAT_BIN_CENTERS - x_clicked)))
 
-#     # toggle off if same bin clicked
 #     if current_bin is not None and current_bin.get("bin_idx") == idx:
 #         return None
 
@@ -642,14 +641,11 @@
 #     dff = df[(df["week"] >= w1) & (df["week"] <= w2)]
 
 #     vals = dff["patient_satisfaction"].dropna().values
-
 #     counts, _ = np.histogram(vals, bins=SAT_BINS)
 
-#     # base Viridis colors according to bin center
 #     norm_centers = (SAT_BIN_CENTERS - 0) / 100.0
 #     base_colors = sample_colorscale("Viridis", norm_centers.tolist())
 
-#     # optionally highlight selected bin
 #     if selected_bin is not None:
 #         selected_idx = selected_bin["bin_idx"]
 #         colors = [
@@ -709,7 +705,7 @@
 # def update_all(week_range, selected_bin):
 #     w1, w2 = week_range
 
-#     # base data by week range (used by staff chart)
+#     # base data by week range (used by staff chart and PCP ranges)
 #     dff_weeks = df[(df["week"] >= w1) & (df["week"] <= w2)].copy()
 
 #     # PCP data optionally filtered by histogram satisfaction bin
@@ -724,13 +720,17 @@
 #     # PCP figures (one per service)
 #     pcp_figs = []
 #     for s in services:
+#         # data for ranges: all weeks for this service
+#         dff_service_weeks = dff_weeks[dff_weeks["service"] == s].copy()
+
+#         # data for lines: filtered by bin (if any)
 #         dff = dff_pcp[dff_pcp["service"] == s].copy()
 
 #         needed_cols = ["patient_satisfaction"] + [c for _, c in PCP_DIMS]
 #         needed_cols = [c for c in needed_cols if c in dff.columns]
 #         dff = dff.dropna(subset=needed_cols, how="any")
 
-#         if dff.empty:
+#         if dff.empty or dff_service_weeks.empty:
 #             fig_empty = go.Figure(
 #                 layout=dict(
 #                     title=f"No Data Available — {s}",
@@ -750,8 +750,9 @@
 #             if col not in dff.columns:
 #                 continue
 
-#             vmin = float(np.nanmin(dff[col].values))
-#             vmax = float(np.nanmax(dff[col].values))
+#             # ranges from full week-filtered service data
+#             vmin = float(np.nanmin(dff_service_weeks[col].values))
+#             vmax = float(np.nanmax(dff_service_weeks[col].values))
 
 #             is_ratio = "ratio" in col.lower()
 #             fmt = (lambda x: f"{x:.2f}") if is_ratio else (lambda x: f"{x:.0f}")
@@ -888,6 +889,7 @@
 # if __name__ == "__main__":
 #     app.run(debug=True)
 
+
 ########################################
 
 
@@ -981,7 +983,7 @@ STAFF_TRANSITION_MS = 350
 # layout
 app.layout = html.Div(
     [
-        # store for selected satisfaction bin (for PCP only)
+        # store for selected satisfaction bin (for PCP highlighting)
         dcc.Store(id="selected-sat-bin", data=None),
 
         html.H2("Service Metrics Dashboard", style=HEADER_STYLE),
@@ -1238,29 +1240,13 @@ def update_all(week_range, selected_bin):
     # base data by week range (used by staff chart and PCP ranges)
     dff_weeks = df[(df["week"] >= w1) & (df["week"] <= w2)].copy()
 
-    # PCP data optionally filtered by histogram satisfaction bin
-    dff_pcp = dff_weeks.copy()
-    if selected_bin is not None:
-        low, high = selected_bin["low"], selected_bin["high"]
-        dff_pcp = dff_pcp[
-            (dff_pcp["patient_satisfaction"] >= low)
-            & (dff_pcp["patient_satisfaction"] < high)
-        ]
-
     # PCP figures (one per service)
     pcp_figs = []
     for s in services:
-        # data for ranges: all weeks for this service
+        # all data for this service (within weeks)
         dff_service_weeks = dff_weeks[dff_weeks["service"] == s].copy()
 
-        # data for lines: filtered by bin (if any)
-        dff = dff_pcp[dff_pcp["service"] == s].copy()
-
-        needed_cols = ["patient_satisfaction"] + [c for _, c in PCP_DIMS]
-        needed_cols = [c for c in needed_cols if c in dff.columns]
-        dff = dff.dropna(subset=needed_cols, how="any")
-
-        if dff.empty or dff_service_weeks.empty:
+        if dff_service_weeks.empty:
             fig_empty = go.Figure(
                 layout=dict(
                     title=f"No Data Available — {s}",
@@ -1275,48 +1261,110 @@ def update_all(week_range, selected_bin):
             pcp_figs.append(fig_empty)
             continue
 
-        dimensions = []
-        for label, col in PCP_DIMS:
-            if col not in dff.columns:
-                continue
+        needed_cols = ["patient_satisfaction"] + [c for _, c in PCP_DIMS]
+        needed_cols = [c for c in needed_cols if c in dff_service_weeks.columns]
 
-            # ranges from full week-filtered service data
-            vmin = float(np.nanmin(dff_service_weeks[col].values))
-            vmax = float(np.nanmax(dff_service_weeks[col].values))
+        dff_all = dff_service_weeks.dropna(subset=needed_cols, how="any")
+        if dff_all.empty:
+            fig_empty = go.Figure(
+                layout=dict(
+                    title=f"No Data Available — {s}",
+                    xaxis={"visible": False},
+                    yaxis={"visible": False},
+                    height=430,
+                    template="plotly_white",
+                    transition={"duration": PCP_TRANSITION_MS},
+                    uirevision="keep",
+                )
+            )
+            pcp_figs.append(fig_empty)
+            continue
 
-            is_ratio = "ratio" in col.lower()
-            fmt = (lambda x: f"{x:.2f}") if is_ratio else (lambda x: f"{x:.0f}")
+        # precompute ranges per column from all lines (not only selected bin)
+        col_ranges = {}
+        for _, col in PCP_DIMS:
+            if col in dff_all.columns:
+                arr = dff_all[col].values
+                col_ranges[col] = (
+                    float(np.nanmin(arr)),
+                    float(np.nanmax(arr)),
+                )
 
-            dimensions.append(
-                dict(
-                    label=label,
-                    values=dff[col],
-                    range=[vmin, vmax],
-                    tickvals=[vmin, vmax],
-                    ticktext=[fmt(vmin), fmt(vmax)],
+        # helper to build dimensions with fixed ranges
+        def make_dimensions(local_df):
+            dims = []
+            for label, col in PCP_DIMS:
+                if col not in local_df.columns or col not in col_ranges:
+                    continue
+                vmin, vmax = col_ranges[col]
+                is_ratio = "ratio" in col.lower()
+                fmt = (lambda x: f"{x:.2f}") if is_ratio else (lambda x: f"{x:.0f}")
+                dims.append(
+                    dict(
+                        label=label,
+                        values=local_df[col],
+                        range=[vmin, vmax],
+                        tickvals=[vmin, vmax],
+                        ticktext=[fmt(vmin), fmt(vmax)],
+                    )
+                )
+            return dims
+
+        # split into selected-bin and other lines
+        if selected_bin is not None:
+            low, high = selected_bin["low"], selected_bin["high"]
+            mask_sel = (
+                (dff_all["patient_satisfaction"] >= low)
+                & (dff_all["patient_satisfaction"] < high)
+            )
+            dff_sel = dff_all[mask_sel]
+            dff_other = dff_all[~mask_sel]
+        else:
+            dff_sel = dff_all
+            dff_other = dff_all.iloc[0:0]  # empty frame with same cols
+
+        traces = []
+
+        # grey lines: outside selected bin
+        if not dff_other.empty:
+            dims_other = make_dimensions(dff_other)
+            traces.append(
+                go.Parcoords(
+                    labelside="bottom",
+                    line=dict(
+                        color=np.zeros(len(dff_other)),
+                        colorscale=[
+                            [0, "rgba(200,200,200,0.3)"],
+                            [1, "rgba(160,160,160,0.6)"],
+                        ],
+                        cmin=0,
+                        cmax=1,
+                        showscale=False,
+                    ),
+                    dimensions=dims_other,
                 )
             )
 
-        sat = dff["patient_satisfaction"]
-        cmin, cmax = 0, 100
-
-        fig = go.Figure(
-            data=[
+        # colored lines: inside selected bin (or all lines if no bin)
+        if not dff_sel.empty:
+            dims_sel = make_dimensions(dff_sel)
+            sat = dff_sel["patient_satisfaction"]
+            traces.append(
                 go.Parcoords(
                     labelside="bottom",
                     line=dict(
                         color=sat,
                         colorscale="Viridis",
-                        cmin=cmin,
-                        cmax=cmax,
+                        cmin=0,
+                        cmax=100,
                         showscale=True,
                         colorbar=dict(title="Patient Satisfaction"),
                     ),
-                    dimensions=dimensions,
+                    dimensions=dims_sel,
                 )
-            ]
-        )
+            )
 
+        fig = go.Figure(data=traces)
         fig.update_layout(
             title=f"Parallel Coordinates — {s}",
             template="plotly_white",
@@ -1325,7 +1373,6 @@ def update_all(week_range, selected_bin):
             transition={"duration": PCP_TRANSITION_MS},
             uirevision="keep",
         )
-
         pcp_figs.append(fig)
 
     # Staff chart uses only week filter (no satisfaction-bin filter)
