@@ -1290,7 +1290,6 @@ def update_all(week_range, selected_bin):
                     float(np.nanmax(arr)),
                 )
 
-        # helper to build dimensions with fixed ranges
         def make_dimensions(local_df):
             dims = []
             for label, col in PCP_DIMS:
@@ -1310,13 +1309,17 @@ def update_all(week_range, selected_bin):
                 )
             return dims
 
-        # split into selected-bin and other lines
+        # split into selected-bin and other lines (with correct upper-edge handling)
         if selected_bin is not None:
             low, high = selected_bin["low"], selected_bin["high"]
-            mask_sel = (
-                (dff_all["patient_satisfaction"] >= low)
-                & (dff_all["patient_satisfaction"] < high)
-            )
+            sat_all = dff_all["patient_satisfaction"]
+            max_sat = sat_all.max()
+
+            if np.isclose(high, max_sat) or high >= max_sat:
+                mask_sel = (sat_all >= low) & (sat_all <= high)
+            else:
+                mask_sel = (sat_all >= low) & (sat_all < high)
+
             dff_sel = dff_all[mask_sel]
             dff_other = dff_all[~mask_sel]
         else:
@@ -1345,7 +1348,7 @@ def update_all(week_range, selected_bin):
                 )
             )
 
-        # colored lines: inside selected bin (or all lines if no bin)
+        # colored lines: inside selected bin (or all if no bin selected)
         if not dff_sel.empty:
             dims_sel = make_dimensions(dff_sel)
             sat = dff_sel["patient_satisfaction"]
@@ -1465,3 +1468,4 @@ def update_all(week_range, selected_bin):
 # http://127.0.0.1:8050
 if __name__ == "__main__":
     app.run(debug=True)
+
