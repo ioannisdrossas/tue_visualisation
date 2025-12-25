@@ -373,7 +373,7 @@
 
 # # 6) The difference is shown as the staff member’s satisfaction deviation (positive or negative).
 
-###############################
+# ##############################
 
 
 
@@ -381,7 +381,8 @@
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from dash import Dash, dcc, html, Input, Output
+from plotly.colors import sample_colorscale
+from dash import Dash, dcc, html, Input, Output, State
 
 # load data
 df = pd.read_csv("services_weekly.csv")
@@ -425,6 +426,10 @@ services = sorted(df["service"].unique())[:4]
 week_min = int(df["week"].min())
 week_max = int(df["week"].max())
 
+# histogram bin edges (0–10, 10–20, …, 90–100)
+SAT_BINS = np.arange(0, 110, 10)
+SAT_BIN_CENTERS = (SAT_BINS[:-1] + SAT_BINS[1:]) / 2.0
+
 # app
 app = Dash(__name__)
 
@@ -462,8 +467,11 @@ STAFF_TRANSITION_MS = 350
 # layout
 app.layout = html.Div(
     [
+        dcc.Store(id="selected-sat-bin", data=None),
+
         html.H2("Service Metrics Dashboard", style=HEADER_STYLE),
 
+        # Week range slider
         html.Div(
             [
                 html.Label("Time Range (weeks)"),
@@ -479,6 +487,19 @@ app.layout = html.Div(
                 ),
             ],
             style={"marginBottom": "16px"},
+        ),
+
+        # Histogram under week bar
+        html.Div(
+            [
+                html.H4("Patient Satisfaction Histogram (Click a bin to filter PCP lines)"),
+                dcc.Graph(id="satisfaction-hist"),
+                html.Div(
+                    "Tip: click a bar to select a bin; click it again to clear.",
+                    style={"fontSize": "12px", "color": "#777"},
+                ),
+            ],
+            style={"marginBottom": "20px"},
         ),
 
         html.Div(
@@ -563,12 +584,10 @@ app.layout = html.Div(
                     },
                 ),
 
-                # Right column: Staff chart + Satisfaction histogram
+                # Staff chart
                 html.Div(
                     [
-                        html.H4(
-                            "Staff Association with Patient Satisfaction (Scrollable)"
-                        ),
+                        html.H4("Staff Association with Patient Satisfaction (Scrollable)"),
                         html.Div(
                             [
                                 dcc.Graph(
@@ -587,9 +606,6 @@ app.layout = html.Div(
                             ],
                             style=SCROLL_WRAP_STYLE,
                         ),
-
-                        html.H4("Distribution of Patient Satisfaction Scores"),
-                        dcc.Graph(id="satisfaction-histogram"),
                     ],
                     style={
                         "width": "50%",
@@ -604,7 +620,98 @@ app.layout = html.Div(
     style=PAGE_STYLE,
 )
 
-# callback
+# ---------- Histogram callbacks ----------
+
+@app.callback(
+    Output("selected-sat-bin", "data"),
+    Input("satisfaction-hist", "clickData"),
+    State("selected-sat-bin", "data"),
+    prevent_initial_call=True,
+)
+def toggle_selected_bin(click_data, current_bin):
+    """Toggle selected histogram bin on click."""
+    if click_data is None or "points" not in click_data:
+        return current_bin
+
+    x_clicked = click_data["points"][0]["x"]  # this is the bin center
+    # find closest bin center
+    idx = int(np.argmin(np.abs(SAT_BIN_CENTERS - x_clicked)))
+
+    # toggle off if same bin clicked
+    if current_bin is not None and current_bin.get("bin_idx") == idx:
+        return None
+
+    return {
+        "bin_idx": idx,
+        "low": float(SAT_BINS[idx]),
+        "high": float(SAT_BINS[idx + 1]),
+    }
+
+
+@app.callback(
+    Output("satisfaction-hist", "figure"),
+    [Input("week-range", "value"), Input("selected-sat-bin", "data")],
+)
+def update_histogram(week_range, selected_bin):
+    """Update histogram of patient satisfaction for selected weeks."""
+    w1, w2 = week_range
+    dff = df[(df["week"] >= w1) & (df["week"] <= w2)]
+
+    vals = dff["patient_satisfaction"].dropna().values
+
+    counts, _ = np.histogram(vals, bins=SAT_BINS)
+
+    # base Viridis colors according to bin center
+    norm_centers = (SAT_BIN_CENTERS - 0) / 100.0
+    base_colors = sample_colorscale("Viridis", norm_centers.tolist())
+
+    # optionally highlight selected bin
+    if selected_bin is not None:
+        selected_idx = selected_bin["bin_idx"]
+        colors = [
+            base_colors[i] if i == selected_idx else "rgba(220,220,220,0.7)"
+            for i in range(len(counts))
+        ]
+    else:
+        colors = base_colors
+
+    fig = go.Figure(
+        data=[
+            go.Bar(
+                x=SAT_BIN_CENTERS,
+                y=counts,
+                marker=dict(color=colors),
+                hovertemplate="Satisfaction: %{customdata}<br>Count: %{y}<extra></extra>",
+                customdata=[
+                    f"{int(SAT_BINS[i])}–{int(SAT_BINS[i+1])}"
+                    for i in range(len(counts))
+                ],
+            )
+        ]
+    )
+
+    fig.update_layout(
+        title="Patient Satisfaction Distribution",
+        xaxis_title="Satisfaction bin",
+        yaxis_title="Count",
+        template="plotly_white",
+        height=260,
+        margin=dict(t=40, l=40, r=20, b=60),
+    )
+
+    fig.update_xaxes(
+        tickmode="array",
+        tickvals=SAT_BIN_CENTERS,
+        ticktext=[
+            f"{int(SAT_BINS[i])}-{int(SAT_BINS[i+1])}"
+            for i in range(len(SAT_BIN_CENTERS))
+        ],
+    )
+
+    return fig
+
+# ---------- PCP + staff callback ----------
+
 @app.callback(
     [
         Output(f"pcp-{services[0]}", "figure"),
@@ -612,13 +719,20 @@ app.layout = html.Div(
         Output(f"pcp-{services[2]}", "figure"),
         Output(f"pcp-{services[3]}", "figure"),
         Output("staff-chart", "figure"),
-        Output("satisfaction-histogram", "figure"),
     ],
-    [Input("week-range", "value")],
+    [Input("week-range", "value"), Input("selected-sat-bin", "data")],
 )
-def update_all(week_range):
+def update_all(week_range, selected_bin):
     w1, w2 = week_range
     dff_all = df[(df["week"] >= w1) & (df["week"] <= w2)].copy()
+
+    # apply satisfaction bin filter if any
+    if selected_bin is not None:
+        low, high = selected_bin["low"], selected_bin["high"]
+        dff_all = dff_all[
+            (dff_all["patient_satisfaction"] >= low)
+            & (dff_all["patient_satisfaction"] < high)
+        ]
 
     # PCP figures (one per service)
     pcp_figs = []
@@ -644,7 +758,6 @@ def update_all(week_range):
             pcp_figs.append(fig_empty)
             continue
 
-        # Build dimensions (4 attributes)
         dimensions = []
         for label, col in PCP_DIMS:
             if col not in dff.columns:
@@ -697,11 +810,11 @@ def update_all(week_range):
 
         pcp_figs.append(fig)
 
-    # If no data at all in selected weeks
+    # Staff chart logic
     if dff_all.empty:
         staff_fig = go.Figure(
             layout={
-                "title": "No Data Available for Selected Week Range",
+                "title": "No Data Available for Selected Filters",
                 "xaxis": {"visible": False},
                 "yaxis": {"visible": False},
                 "height": 700,
@@ -710,19 +823,8 @@ def update_all(week_range):
                 "uirevision": "keep",
             }
         )
+        return pcp_figs + [staff_fig]
 
-        hist_fig = go.Figure(
-            layout={
-                "title": "No Patient Satisfaction Data for Selected Week Range",
-                "xaxis": {"title": "Patient Satisfaction Score"},
-                "yaxis": {"title": "Count"},
-                "template": "plotly_white",
-                "uirevision": "keep",
-            }
-        )
-        return pcp_figs + [staff_fig, hist_fig]
-
-    # Staff chart logic
     overall_avg_satisfaction = dff_all["patient_satisfaction"].mean()
 
     sched_filtered = schedule[(schedule["week"] >= w1) & (schedule["week"] <= w2)]
@@ -737,8 +839,7 @@ def update_all(week_range):
 
     name_col_candidates = ["staff_name_x", "staff_name", "staff_name_y", "name"]
     name_col = next(
-        (c for c in name_col_candidates if c in staff_satisfaction.columns),
-        "staff_id",
+        (c for c in name_col_candidates if c in staff_satisfaction.columns), "staff_id"
     )
 
     staff_agg = (
@@ -750,10 +851,7 @@ def update_all(week_range):
     staff_agg["satisfaction_contribution"] = (
         staff_agg["mean_satisfaction"] - overall_avg_satisfaction
     )
-
-    staff_agg = staff_agg.sort_values(
-        "satisfaction_contribution", ascending=True
-    )
+    staff_agg = staff_agg.sort_values("satisfaction_contribution", ascending=True)
 
     bar_colors = [
         "#27AE60" if v >= 0 else "#E74C3C"
@@ -771,16 +869,12 @@ def update_all(week_range):
             textposition="auto",
         )
     )
-
     staff_fig.update_layout(
         title={
             "text": f"Staff Association with Patient Satisfaction Deviation (Weeks {w1}–{w2})",
             "x": 0.5,
         },
-        xaxis_title=(
-            f"Avg Satisfaction Deviation from Overall Mean "
-            f"({overall_avg_satisfaction:.2f})"
-        ),
+        xaxis_title=f"Avg Satisfaction Deviation from Overall Mean ({overall_avg_satisfaction:.2f})",
         yaxis_title="Staff Member",
         height=2500,
         template="plotly_white",
@@ -799,34 +893,10 @@ def update_all(week_range):
         ],
     )
 
-    # Histogram of patient satisfaction (all services, selected weeks)
-    sat_values = dff_all["patient_satisfaction"].dropna()
-
-    hist_fig = go.Figure(
-        data=[
-            go.Histogram(
-                x=sat_values,
-                xbins=dict(
-                    start=0,
-                    end=100,
-                    size=5,
-                ),
-            )
-        ]
-    )
-
-    hist_fig.update_layout(
-        title=f"Patient Satisfaction Distribution (Weeks {w1}–{w2})",
-        xaxis_title="Patient Satisfaction Score",
-        yaxis_title="Number of Observations",
-        template="plotly_white",
-        margin=dict(t=60, l=60, r=30, b=60),
-        uirevision="keep",
-    )
-
-    return pcp_figs + [staff_fig, hist_fig]
+    return pcp_figs + [staff_fig]
 
 
 # run
+# http://127.0.0.1:8050
 if __name__ == "__main__":
     app.run(debug=True)
