@@ -79,4 +79,4 @@ if __name__ == "__main__":
     dashboard4.register_callbacks(app)
 
     # Run the app
-    app.run_server(debug=True)
+    app.run(debug=True)
