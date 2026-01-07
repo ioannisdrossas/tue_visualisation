@@ -1,9 +1,11 @@
 if __name__ == "__main__":
     from dash import Dash, dcc, html
+    import dash_bootstrap_components as dbc
     from main_final_class import ServicePerformanceDashboard
+    from staffing_dashboard import StaffingAnalysisDashboard
 
     # Create the Dash app
-    app = Dash(__name__)
+    app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
     # Tab styles
     tab_style = {
@@ -27,7 +29,7 @@ if __name__ == "__main__":
 
     # Create 4 dashboard instances with unique ID prefixes
     dashboard1 = ServicePerformanceDashboard("services_weekly.csv", id_prefix="tab1-")
-    dashboard2 = ServicePerformanceDashboard("services_weekly.csv", id_prefix="tab2-")
+    dashboard2 = StaffingAnalysisDashboard(id_prefix="tab2-")
     dashboard3 = ServicePerformanceDashboard("services_weekly.csv", id_prefix="tab3-")
     dashboard4 = ServicePerformanceDashboard("services_weekly.csv", id_prefix="tab4-")
 
@@ -60,7 +62,7 @@ if __name__ == "__main__":
             dcc.Tab(label='Task 1', value='tab-1',
                     style=tab_style, selected_style=tab_selected_style,
                     children=[dashboard1.get_layout()]),
-            dcc.Tab(label='Task 2', value='tab-2',
+            dcc.Tab(label='Operational KPIs Tracking', value='tab-2',
                     style=tab_style, selected_style=tab_selected_style,
                     children=[dashboard2.get_layout()]),
             dcc.Tab(label='Task 3', value='tab-3',
