@@ -1,8 +1,9 @@
 if __name__ == "__main__":
     from dash import Dash, dcc, html
     import dash_bootstrap_components as dbc
-    from main_final_class import ServicePerformanceDashboard
-    from staffing_dashboard import StaffingAnalysisDashboard
+    from task5 import ServicePerformanceDashboard
+    from task23 import StaffingAnalysisDashboard
+    from task4 import StaffMetricsDashboard
 
     # Create the Dash app
     app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -30,8 +31,9 @@ if __name__ == "__main__":
     # Create 4 dashboard instances with unique ID prefixes
     dashboard1 = ServicePerformanceDashboard("services_weekly.csv", id_prefix="tab1-")
     dashboard2 = StaffingAnalysisDashboard(id_prefix="tab2-")
-    dashboard3 = ServicePerformanceDashboard("services_weekly.csv", id_prefix="tab3-")
-    dashboard4 = ServicePerformanceDashboard("services_weekly.csv", id_prefix="tab4-")
+    dashboard3 = StaffMetricsDashboard(services_csv="services_weekly.csv", schedule_csv="staff_schedule.csv",
+                                       id_prefix="tab4-")
+    dashboard4 = ServicePerformanceDashboard("services_weekly.csv", id_prefix="tab3-")
 
     # Create the main layout with enhanced title styling
     app.layout = html.Div([
@@ -65,7 +67,7 @@ if __name__ == "__main__":
             dcc.Tab(label='Operational KPIs Tracking', value='tab-2',
                     style=tab_style, selected_style=tab_selected_style,
                     children=[dashboard2.get_layout()]),
-            dcc.Tab(label='Task 3', value='tab-3',
+            dcc.Tab(label='Staff Metrics Dashboard', value='tab-3',
                     style=tab_style, selected_style=tab_selected_style,
                     children=[dashboard3.get_layout()]),
             dcc.Tab(label='Service Performance Comparison', value='tab-4',
