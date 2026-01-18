@@ -4,6 +4,7 @@ if __name__ == "__main__":
     from task5 import ServicePerformanceDashboard
     from task23 import StaffingAnalysisDashboard
     from task4 import StaffMetricsDashboard
+    from task1 import DemandAnalysisDashboard
 
     # Create the Dash app
     app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -29,7 +30,7 @@ if __name__ == "__main__":
     }
 
     # Create 4 dashboard instances with unique ID prefixes
-    dashboard1 = ServicePerformanceDashboard("services_weekly.csv", id_prefix="tab1-")
+    dashboard1 = DemandAnalysisDashboard("services_weekly.csv", id_prefix="tab1-")
     dashboard2 = StaffingAnalysisDashboard(id_prefix="tab2-")
     dashboard3 = StaffMetricsDashboard(services_csv="services_weekly.csv", schedule_csv="staff_schedule.csv",
                                        id_prefix="tab4-")
@@ -61,9 +62,9 @@ if __name__ == "__main__":
                  style={"height": "44px"},
                  parent_style={"marginBottom": "20px"},
                  children=[
-            dcc.Tab(label='Task 1', value='tab-1',
+            dcc.Tab(label='Demand Analysis', value='tab-1',
                     style=tab_style, selected_style=tab_selected_style,
-                    children=[dashboard1.get_layout()]),
+                    children=[dashboard1.layout()]),
             dcc.Tab(label='Operational KPIs Tracking', value='tab-2',
                     style=tab_style, selected_style=tab_selected_style,
                     children=[dashboard2.get_layout()]),
