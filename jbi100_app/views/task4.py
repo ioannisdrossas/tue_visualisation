@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from plotly.colors import sample_colorscale
 
 
-class StaffMetricsDashboard:
+class CorrelationsDashboard:
     """
     A class-based dashboard for visualizing staff and service metrics.
     Can be integrated as a tab in a larger Dash application.

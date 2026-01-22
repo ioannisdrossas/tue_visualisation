@@ -11,14 +11,21 @@ class StaffingAnalysisDashboard:
     and deviations from benchmarks.
     """
 
-    def __init__(self, id_prefix="staff_kpi"):
+    def __init__(self, services_csv, schedule_csv, patients_csv, id_prefix="staff_kpi"):
         """
         Args:
-            id_prefix (str): A unique string to prefix all component IDs. 
-                             Essential for multi-tab apps to avoid ID conflicts.
+            services_csv (str): Path to services_weekly.csv
+            schedule_csv (str): Path to staff_schedule.csv
+            patients_csv (str): Path to patients.csv
+            id_prefix (str): Unique identifier for the component.
         """
         self.id_prefix = id_prefix
         
+        # Store the paths for use in _load_and_process_data
+        self.services_csv = services_csv
+        self.schedule_csv = schedule_csv
+        self.patients_csv = patients_csv
+
         # Define Benchmarks
         self.BENCHMARKS = {
             'ICU': {'nurse': 2, 'doctor': 14, 'alos_min': 2, 'alos_max': 4},
@@ -37,9 +44,9 @@ class StaffingAnalysisDashboard:
     def _load_and_process_data(self):
         """Internal method to load CSVs and perform feature engineering."""
         try:
-            services_df = pd.read_csv('services_weekly.csv')
-            staff_schedule_df = pd.read_csv('staff_schedule.csv')
-            patients_df = pd.read_csv('patients.csv')
+            services_df = pd.read_csv(self.services_csv)
+            staff_schedule_df = pd.read_csv(self.schedule_csv)
+            patients_df = pd.read_csv(self.patients_csv)
         except FileNotFoundError:
             # Fallback for demonstration if files aren't found
             print("Error: CSV files not found. Ensure 'services_weekly.csv', 'staff_schedule.csv', and 'patients.csv' exist.")
@@ -124,12 +131,12 @@ class StaffingAnalysisDashboard:
             # CONTROLS
             html.Div([
                 html.Div([
-                    html.Label("1. Service:", style={'fontWeight': 'bold'}),
+                    html.Label("Service:", style={'fontWeight': 'bold'}),
                     dcc.Dropdown(id=self._get_id('service-dropdown'), options=[], value='surgery', clearable=False)
                 ], style={'width': '22%'}),
                 
                 html.Div([
-                    html.Label("2. Time Scale:", style={'fontWeight': 'bold'}),
+                    html.Label("Time Scale:", style={'fontWeight': 'bold'}),
                     dcc.Dropdown(
                         id=self._get_id('time-scale-dropdown'),
                         options=[{'label': 'Weekly', 'value': 'week'}, {'label': 'Monthly', 'value': 'month'}, {'label': 'Quarterly', 'value': 'quarter'}],
@@ -139,7 +146,7 @@ class StaffingAnalysisDashboard:
                 
                 # View Type Container
                 html.Div([
-                    html.Label("3. View Type:", style={'fontWeight': 'bold', 'color': '#d62728'}),
+                    html.Label("View Type:", style={'fontWeight': 'bold'}),
                     dcc.Dropdown(
                         id=self._get_id('view-type-dropdown'),
                         options=[{'label': 'Line Chart', 'value': 'line'}, {'label': 'Heatmap', 'value': 'heatmap'}],
@@ -148,7 +155,7 @@ class StaffingAnalysisDashboard:
                 ], id=self._get_id('view-type-container'), style={'width': '22%', 'display': 'none'}),
                 
                 html.Div([
-                    html.Label("4. Role:", style={'fontWeight': 'bold'}),
+                    html.Label("Role:", style={'fontWeight': 'bold'}),
                     dcc.RadioItems(
                         id=self._get_id('role-selector'),
                         options=[{'label': ' Nurse', 'value': 'nurse'}, {'label': ' Doctor', 'value': 'doctor'}],
