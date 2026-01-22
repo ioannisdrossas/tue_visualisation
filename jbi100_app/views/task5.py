@@ -1,3 +1,4 @@
+# Import necessary libraries
 import pandas as pd
 import numpy as np
 from dash import dcc, html, Input, Output, State
@@ -8,17 +9,17 @@ from scipy.stats import gaussian_kde
 
 class ServicePerformanceDashboard:
     """
-    A class-based dashboard for visualizing service performance metrics.
-    Can be integrated as a tab in a larger Dash application.
+    Class for visualizing service performance metrics.
+    (meant to be used as a single tab in the app script)
     """
 
     def __init__(self, csv_path="services_weekly.csv", id_prefix=""):
         """
-        Initialize the dashboard with data from CSV.
+        Initializes the dashboard with data from CSV.
 
         Args:
-            csv_path: Path to the services_weekly.csv file
-            id_prefix: Prefix for all component IDs to avoid conflicts
+            csv_path: Path to the needed .csv file
+            id_prefix: Prefix for all component IDs to avoid conflicts when having multiple tabs
         """
         self.csv_path = csv_path
         self.id_prefix = id_prefix
@@ -27,21 +28,15 @@ class ServicePerformanceDashboard:
         self.min_week = None
         self.max_week = None
 
-        # Shape palette
+        # Shape representing each type of service in the scatter plot
         self.shapes = {
             "emergency": "circle",
             "surgery": "square",
             "ICU": "diamond",
             "general_medicine": "cross",
-            "pediatrics": "x",
-            "cardiology": "triangle-up",
-            "orthopedics": "triangle-down",
-            "radiology": "pentagon",
-            "laboratory": "hexagon",
-            "pharmacy": "star"
         }
 
-        # Quadrant colors
+        # Quadrant background colors
         self.quadrant_colors = {
             "low_refusal_high_sat": "rgb(46, 134, 193)",
             "high_refusal_high_sat": "rgb(255, 152, 0)",
@@ -49,18 +44,12 @@ class ServicePerformanceDashboard:
             "high_refusal_low_sat": "rgb(156, 39, 176)"
         }
 
-        # Assign each service a random quadrant color for KDE
+        # Assign each service a quadrant color for KDE
         self.service_kde_colors = {
             "emergency": "rgb(46, 134, 193)",
             "surgery": "rgb(255, 152, 0)",
             "ICU": "rgb(76, 175, 80)",
             "general_medicine": "rgb(156, 39, 176)",
-            "pediatrics": "rgb(46, 134, 193)",
-            "cardiology": "rgb(255, 152, 0)",
-            "orthopedics": "rgb(76, 175, 80)",
-            "radiology": "rgb(156, 39, 176)",
-            "laboratory": "rgb(46, 134, 193)",
-            "pharmacy": "rgb(255, 152, 0)"
         }
 
         # Styles
@@ -106,13 +95,14 @@ class ServicePerformanceDashboard:
 
     def _load_data(self):
         """Load and preprocess data from CSV."""
+        # Try block to handle exceptions properly
         try:
             self.df = pd.read_csv(self.csv_path)
         except FileNotFoundError as e:
             print(f"Error loading CSV file: {e}. Please ensure {self.csv_path} is in the directory.")
             raise
 
-        # Normalize satisfaction 0–100 → 1–5
+        # Normalize satisfaction from 0–100 to 1–5 range
         self.df["satisfaction_5pt"] = 1 + 4 * (self.df["patient_satisfaction"] / 100)
 
         self.services = self.df["service"].unique()
@@ -132,10 +122,13 @@ class ServicePerformanceDashboard:
         """
         x_mid, y_mid = 0.50, 2.50
 
+        # low refusal, high satisfaction
         if refusal_rate < x_mid and satisfaction >= y_mid:
             return self.quadrant_colors["low_refusal_high_sat"]
+        # high refusal, high satisfaction
         elif refusal_rate >= x_mid and satisfaction >= y_mid:
             return self.quadrant_colors["high_refusal_high_sat"]
+        # low refusal, low satisfaction
         elif refusal_rate < x_mid and satisfaction < y_mid:
             return self.quadrant_colors["low_refusal_low_sat"]
         else:  # high refusal, low satisfaction
@@ -144,7 +137,6 @@ class ServicePerformanceDashboard:
     def get_layout(self):
         """
         Return the layout for this dashboard.
-        This can be used as content for a dcc.Tab or a page in a multi-page app.
         """
         return html.Div([
             html.H2("Service Performance Dashboard", style=self.header_style),
