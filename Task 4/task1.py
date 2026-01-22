@@ -9,37 +9,18 @@ from collections import Counter
 # 1. HELPERS & LOGIC (Untouched Preprocessing)
 # ==========================================
 def load_data(csv_path):
-    try:
-        df = pd.read_csv(csv_path)
-        df = df.sort_values(by='week')
-        
-        # Robust Cleaning
-        df['event'] = df['event'].astype(str).str.strip().str.lower()
-        df['event'] = df['event'].replace({'nan': 'none', '': 'none'})
-        df['month'] = (pd.Timestamp('2025-01-01') + pd.to_timedelta((df['week'] - 1) * 7, unit='D')).dt.month
-        
-        # Pre-calculate quarters
-        df['quarter'] = ((df['month'] - 1) // 3) + 1
-        return df
-
-    except FileNotFoundError:
-        print(f"Warning: {csv_path} not found. Generating dummy data.")
-        weeks = list(range(1, 53))
-        df = pd.DataFrame({
-            'week': weeks,
-            'month': [((w-1)//4)+1 for w in weeks],
-            'service': ['emergency'] * 52,
-            'patients_request': np.random.randint(50, 200, 52),
-            'available_beds': np.random.randint(40, 180, 52),
-            'event': ['none'] * 52
-        })
-        # Dummy events
-        for i, evt in [(0, 'strike'), (1, 'strike'), (2, 'donation'), (5, 'flu'), (6, 'flu'), (7, 'flu')]:
-            df.loc[i, 'event'] = evt
-        
-        df['quarter'] = ((df['month'] - 1) // 3) + 1
-        return df
-
+    df = pd.read_csv(csv_path)
+    df = df.sort_values(by='week')
+    
+    # Robust Cleaning
+    df['event'] = df['event'].astype(str).str.strip().str.lower()
+    df['event'] = df['event'].replace({'nan': 'none', '': 'none'})
+    df['month'] = (pd.Timestamp('2025-01-01') + pd.to_timedelta((df['week'] - 1) * 7, unit='D')).dt.month
+    
+    # Pre-calculate quarters
+    df['quarter'] = ((df['month'] - 1) // 3) + 1
+    return df
+    
 class HospitalDemandChart:
     def __init__(self, dataframe, colors):
         self.df = dataframe
