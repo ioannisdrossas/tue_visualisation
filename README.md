@@ -67,3 +67,7 @@ You will get a http link, open this in your browser to see the results. You can 
 ## Resources
 
 * [Dash](https://dash.plot.ly/)
+
+## Comments
+
+We consider our implementation with Plotly high because we have an exctensive linking between views in the different tabs of the dashboard. 
