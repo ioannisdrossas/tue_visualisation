@@ -1,4 +1,4 @@
-# JBI100-example-app
+# JBI100-HospitalDashboard-app
 
 ## About this app
 
