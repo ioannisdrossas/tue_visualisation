@@ -99,7 +99,7 @@ class ServicePerformanceDashboard:
         try:
             self.df = pd.read_csv(self.csv_path)
         except FileNotFoundError as e:
-            print(f"Error loading CSV file: {e}. Please ensure {self.csv_path} is in the directory.")
+            print(f"Error loading CSV file: {e}. File {self.csv_path} not found.")
             raise
 
         # Normalize satisfaction from 0–100 to 1–5 range
