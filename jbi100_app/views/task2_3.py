@@ -52,7 +52,6 @@ class StaffingAnalysisDashboard:
                 html.Div: The root Dash HTML component containing the dashboard layout.
         """
         return html.Div([
-            html.H2("Staffing & Efficiency Analytics", style={'textAlign': 'center', 'fontFamily': 'Arial', 'marginTop': '10px'}),
             
             # CONTROLS
             html.Div([

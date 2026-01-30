@@ -70,7 +70,7 @@ if __name__ == "__main__":
             dcc.Tab(label='Demand Analysis', value='tab-1',
                     style=tab_style, selected_style=tab_selected_style,
                     children=[dashboard1.layout()]),
-            dcc.Tab(label='Staffing Metrics', value='tab-2',
+            dcc.Tab(label='Staffing Analytics', value='tab-2',
                     style=tab_style, selected_style=tab_selected_style,
                     children=[dashboard2.get_layout()]),
             dcc.Tab(label='Patient Satisfaction Correlations', value='tab-3',

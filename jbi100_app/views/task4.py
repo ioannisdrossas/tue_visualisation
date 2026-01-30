@@ -116,8 +116,6 @@ class CorrelationsDashboard:
             #store for selected satisfaction bin (for PCP only)
             dcc.Store(id=self._get_id("selected-sat-bin"), data=None),
 
-            html.H2("Service Metrics Dashboard", style=self.header_style),
-
             #week range slider
             html.Div([
                 html.Label("Time Range (weeks)"),
@@ -145,7 +143,7 @@ class CorrelationsDashboard:
 
             #PCP plots full width
             html.Div([
-                html.H4("Parallel Coordinates (Color: Patient Satisfaction)"),
+                html.H4("Parallel Coordinates"),
                 html.Div([
                     html.Div(
                         dcc.Graph(

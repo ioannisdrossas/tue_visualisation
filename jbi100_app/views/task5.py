@@ -139,8 +139,7 @@ class ServicePerformanceDashboard:
         Return the layout for this dashboard.
         """
         return html.Div([
-            html.H2("Service Performance Dashboard", style=self.header_style),
-
+            
             # Hidden store for tracking visible services
             dcc.Store(id=self._get_id("visible-services-store"), data=None),
 

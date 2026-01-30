@@ -186,11 +186,6 @@ class DemandAnalysisDashboard:
     def layout(self):
         return html.Div(style={'backgroundColor': self.COLORS['bg'], 'fontFamily': 'Roboto, sans-serif', 'padding': '20px'}, children=[
             
-            # header
-            html.Div([
-                html.H2("Hospital Demand Analysis", style={'color': self.COLORS['text'], 'fontWeight': '700', 'marginBottom': '5px'})
-            ], style={'marginBottom': '20px', 'textAlign': 'center'}),
-
             # main white card
             html.Div(style={'backgroundColor': self.COLORS['card'], 'padding': '20px', 'borderRadius': '12px', 'boxShadow': '0 4px 15px rgba(0,0,0,0.05)'}, children=[
                 
