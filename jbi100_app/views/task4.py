@@ -6,10 +6,6 @@ from plotly.colors import sample_colorscale
 
 
 class CorrelationsDashboard:
-    """
-    A class-based dashboard for visualizing staff and service metrics.
-    Can be integrated as a tab in a larger Dash application.
-    """
 
     def __init__(self, services_csv="services_weekly.csv", schedule_csv="staff_schedule.csv", id_prefix=""):
         """
@@ -28,11 +24,11 @@ class CorrelationsDashboard:
         self.week_min = None
         self.week_max = None
 
-        # Histogram bin edges
+        #histogram bin edges
         self.SAT_BINS = np.arange(0, 110, 10)
         self.SAT_BIN_CENTERS = (self.SAT_BINS[:-1] + self.SAT_BINS[1:]) / 2.0
 
-        # PCP dimensions (exactly 4 attributes)
+        #PCP dimensions (exactly 4 attributes)
         self.PCP_DIMS = [
             ("Staff Morale", "staff_morale"),
             ("Available Beds", "available_beds"),
@@ -40,10 +36,10 @@ class CorrelationsDashboard:
             ("Patient-to-Doctor Ratio", "patient_to_doctor_ratio"),
         ]
 
-        # Animation settings (ms)
+        #animation settings (ms)
         self.PCP_TRANSITION_MS = 350
 
-        # Styles
+        #styles
         self.page_style = {
             "fontFamily": "Inter, Arial, sans-serif",
             "padding": "20px",
@@ -53,7 +49,7 @@ class CorrelationsDashboard:
 
         self.header_style = {"marginBottom": "10px"}
 
-        # Load and prepare data
+        #load and prepare data
         self._load_data()
 
     def _get_id(self, component_id):
@@ -69,7 +65,9 @@ class CorrelationsDashboard:
             print(f"Error loading CSV files: {e}")
             raise
 
-        # Count nurses present per week and service
+#####################################################################
+
+        #count nurses present per week and service
         nurse_counts = (
             schedule[schedule["role"].str.lower() == "nurse"]
             .groupby(["week", "service"])["present"]
@@ -77,7 +75,7 @@ class CorrelationsDashboard:
             .reset_index(name="nurses_present")
         )
 
-        # Count doctors present per week and service
+        #count doctors present per week and service
         doctor_counts = (
             schedule[schedule["role"].str.lower() == "doctor"]
             .groupby(["week", "service"])["present"]
@@ -97,9 +95,12 @@ class CorrelationsDashboard:
         df["patient_to_nurse_ratio"] = df["patients_admitted"] / df["nurses_present"]
         df["patient_to_doctor_ratio"] = df["patients_admitted"] / df["doctors_present"]
 
+#####################################################################
+
+
         self.df = df
 
-        # Select the first four services to display
+        #select the first four services to display
         self.services = sorted(df["service"].unique())[:4]
 
         # Define minimum and maximum weeks for the time range slider
@@ -112,12 +113,12 @@ class CorrelationsDashboard:
         This can be used as content for a dcc.Tab or a page in a multi-page app.
         """
         return html.Div([
-            # Store for selected satisfaction bin (for PCP only)
+            #store for selected satisfaction bin (for PCP only)
             dcc.Store(id=self._get_id("selected-sat-bin"), data=None),
 
             html.H2("Service Metrics Dashboard", style=self.header_style),
 
-            # Week range slider
+            #week range slider
             html.Div([
                 html.Label("Time Range (weeks)"),
                 dcc.RangeSlider(
@@ -132,7 +133,7 @@ class CorrelationsDashboard:
                 ),
             ], style={"marginBottom": "16px"}),
 
-            # Histogram under week bar
+            #histogram under week bar
             html.Div([
                 html.H4("Patient Satisfaction Histogram (Click a bin to filter PCP lines)"),
                 dcc.Graph(id=self._get_id("satisfaction-hist")),
@@ -142,7 +143,7 @@ class CorrelationsDashboard:
                 ),
             ], style={"marginBottom": "20px"}),
 
-            # PCP plots full width
+            #PCP plots full width
             html.Div([
                 html.H4("Parallel Coordinates (Color: Patient Satisfaction)"),
                 html.Div([
@@ -308,10 +309,10 @@ class CorrelationsDashboard:
         """Update all PCP plots based on week range and selected bin."""
         w1, w2 = week_range
 
-        # Base data by week range (used by PCP ranges)
+        #base data by week range (used by PCP ranges)
         dff_weeks = self.df[(self.df["week"] >= w1) & (self.df["week"] <= w2)].copy()
 
-        # PCP data optionally filtered by histogram satisfaction bin
+        #PCP data optionally filtered by histogram satisfaction bin
         dff_pcp = dff_weeks.copy()
         if selected_bin is not None:
             low, high = selected_bin["low"], selected_bin["high"]
@@ -320,7 +321,7 @@ class CorrelationsDashboard:
                 & (dff_pcp["patient_satisfaction"] < high)
             ]
 
-        # PCP figures (one per service)
+        #PCP figures (one per service)
         pcp_figs = []
         for s in self.services:
             pcp_figs.append(self._create_pcp_figure(s, dff_weeks, dff_pcp))
@@ -329,10 +330,12 @@ class CorrelationsDashboard:
 
     def _create_pcp_figure(self, service, dff_weeks, dff_pcp):
         """Create a parallel coordinates plot for a single service."""
-        # Data for ranges: all weeks for this service
+        
+        #data for ranges: all weeks for this service
         dff_service_weeks = dff_weeks[dff_weeks["service"] == service].copy()
 
-        # Data for lines: filtered by bin (if any)
+
+        #data for lines: filtered by bin (if any)
         dff = dff_pcp[dff_pcp["service"] == service].copy()
 
         needed_cols = ["patient_satisfaction"] + [c for _, c in self.PCP_DIMS]
@@ -357,7 +360,7 @@ class CorrelationsDashboard:
             if col not in dff.columns:
                 continue
 
-            # Ranges from full week-filtered service data
+            #ranges from full week-filtered service data
             vmin = float(np.nanmin(dff_service_weeks[col].values))
             vmax = float(np.nanmax(dff_service_weeks[col].values))
 
